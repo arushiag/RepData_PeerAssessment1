@@ -1,25 +1,131 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+Author: Arushi Agarwal
+Date: 27/11/2017
+Title: Reproducible Research Project 1
+output:
+  md_document: default
+  html_document: default
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
+## Reproducible Research - Week 2 Project
 ## Loading and preprocessing the data
+Setting the working directory to the appropriate folder on my machine and load the relevant libraries.
+```{r}
+setwd('/Users/arushiagarwal/Documents/Coursera/John Hopkins course/Reproducible Research')
+library("ggplot2")
+library("dplyr")
+library("grid")
+library("gridExtra")
+```
 
+1. Load and pre-process the data
+```{r}
+unzip('week2.zip')
+data <- read.csv('activity.csv', header = TRUE)
+```
 
+2. Looking at the summary of data and top 5 rows to get idea of the dataset
+```{r}
+str(data)
+summary(data)
+head(data)
+data$dates <- as.Date(data$date ,"%Y-%m-%d")
+```
 
-## What is mean total number of steps taken per day?
+##What is mean total number of steps taken per day?
+1. Calculate the total number of steps taken per day
+```{r}
+steps <- aggregate(data$steps, by = list(data$dates), FUN = sum)
+names(steps) <- c("Date","Total")
+```
 
+2. If you do not understand the difference between a histogram and a barplot, research the difference between them. Make a histogram of the total number of steps taken each day
+```{r}
+hist <- ggplot(steps, aes(x = Total)) +
+  geom_histogram(fill = "blue", binwidth = 1000) +
+  labs(title = "Histogram of Daily Total Steps", x = "Steps", y = "Frequency")
+print(hist)
+```
 
+3. Calculate and report the mean and median of the total number of steps taken per day
+```{r}
+steps$mean_steps <- mean(steps$Total, na.rm = TRUE)
+steps$median_steps <- median(steps$Total, na.rm = TRUE)
+```
 
-## What is the average daily activity pattern?
+##What is the average daily activity pattern?
+1. Make a time series plot (i.e. 𝚝𝚢𝚙𝚎 = “𝚕”) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis) type = “l” means the plot is line graph
+```{r}
+interval <- aggregate(steps ~ interval, data = data, FUN =mean)
+ggplot(interval, aes(x = interval , y = steps)) + geom_line(color="blue", size=1) + labs(title = "Average Daily Steps", x = "Time Interval ((5 Minutes is an unit))", y = "Avg. Steps per day")
+```
 
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r}
+maxinterval <- interval[interval$steps == max(interval$steps, na.rm = TRUE), 1]
+```
 
+##Imputing missing values
+Note that there are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
 
-## Imputing missing values
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r}
+missing_count <- sum(is.na(data))
+```
 
+2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+```{r}
+replace_with_mean <- function(num) replace(num, is.na(num), mean(num, na.rm = TRUE))
+meanday <- (data %>% group_by(interval) %>% mutate(steps = replace_with_mean(steps)))
+head(meanday)
+```
 
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r}
+imputeddata <- meanday[,c(1,4,3)]
+summary(imputeddata)
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+4.Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r}
+newsteps <- aggregate(imputeddata$steps, by = list(imputeddata$dates), FUN = sum)
+names(newsteps) <- c("Date","Total")
+newhist <- ggplot(newsteps, aes(x = Total)) +
+  geom_histogram(fill = "blue", binwidth = 1000) +
+  labs(title = "Histogram of Daily Total Steps", x = "Steps", y = "Frequency")
+print(newhist)
+
+newsteps$mean_steps <- mean(newsteps$Total, na.rm = TRUE)
+newsteps$median_steps <- median(newsteps$Total, na.rm = TRUE)
+
+grid.arrange(hist, newhist, ncol = 2)
+```
+
+Comparing mean and median 
+```{r}
+mean(na.omit(steps$Total))
+median(na.omit(steps$Total))
+mean(newsteps$Total)
+median(newsteps$Total)
+```
+From the comparison, we can see that the highest count of the new version data is larger than the one we have with NAs. The means of each dataset are same. The medians of each dataset are slightly different.
+
+#Are there differences in activity patterns between weekdays and weekends?
+1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r}
+imputeddata$WeekendOrWeekday <- ifelse(weekdays(imputeddata$dates) %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), "Weekday", "Weekend")
+```
+
+2. Make a panel plot containing a time series plot (i.e. 𝚝𝚢𝚙𝚎 = “𝚕”) of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated
+```{r}
+imputeddata <- (imputeddata %>% group_by(interval, WeekendOrWeekday) %>% summarise(Mean = mean(steps)))
+ggplot(imputeddata, mapping = aes(x = interval, y = Mean)) + geom_line() +
+  facet_grid(WeekendOrWeekday ~.) + xlab("Interval") + ylab("Mean of Steps") +
+  ggtitle("Comparison of Average Number of Steps in Each Interval")
+```
+
+There are differences in activity patterns between weekdays and weekends. Compared with weekdays, during weekends, people tend to get up late and stay up late. On weekends, people tend to be more active, since their steps are not stable caused of not working.
